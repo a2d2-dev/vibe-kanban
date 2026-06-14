@@ -59,6 +59,61 @@ export const detectDevserverUrl = (line: string): DevserverUrlInfo | null => {
   return null;
 };
 
+/**
+ * Collect all unique URLs from log entries.
+ * Returns an array of all detected devserver URLs (deduplicated by URL string).
+ *
+ * @param logs - Array of log entries with content
+ * @returns Array of unique DevserverUrlInfo objects
+ */
+export const collectAllDevserverUrls = (
+  logs: Array<{ content: string }>
+): DevserverUrlInfo[] => {
+  const seenUrls = new Set<string>();
+  const urls: DevserverUrlInfo[] = [];
+
+  for (const entry of logs) {
+    const detected = detectDevserverUrl(entry.content);
+    if (detected && !seenUrls.has(detected.url)) {
+      seenUrls.add(detected.url);
+      urls.push(detected);
+    }
+  }
+
+  return urls;
+};
+
+/**
+ * Hook to collect all unique URLs from logs.
+ * Updates when logs change.
+ *
+ * @param logs - Array of log entries with content
+ * @returns Object containing all detected URLs and whether multiple URLs were found
+ */
+export const useAllDevserverUrls = (
+  logs: Array<{ content: string }> | undefined
+): {
+  urls: DevserverUrlInfo[];
+  hasMultiple: boolean;
+} => {
+  const [urls, setUrls] = useState<DevserverUrlInfo[]>([]);
+
+  useEffect(() => {
+    if (!logs || logs.length === 0) {
+      setUrls([]);
+      return;
+    }
+
+    const collected = collectAllDevserverUrls(logs);
+    setUrls(collected);
+  }, [logs]);
+
+  return {
+    urls,
+    hasMultiple: urls.length > 1,
+  };
+};
+
 export const useDevserverUrlFromLogs = (
   logs: Array<{ content: string }> | undefined
 ): DevserverUrlInfo | undefined => {

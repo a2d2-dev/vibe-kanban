@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button';
 import { useDevserverPreview } from '@/hooks/useDevserverPreview';
 import { useDevServer } from '@/hooks/useDevServer';
 import { useLogStream } from '@/hooks/useLogStream';
-import { useDevserverUrlFromLogs } from '@/hooks/useDevserverUrl';
+import {
+  useAllDevserverUrls,
+  type DevserverUrlInfo,
+} from '@/hooks/useDevserverUrl';
 import { ClickToComponentListener } from '@/utils/previewBridge';
 import { useClickedElements } from '@/contexts/ClickedElementsProvider';
 import { Alert } from '@/components/ui/alert';
@@ -23,6 +26,7 @@ export function PreviewPanel() {
   const [showHelp, setShowHelp] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showLogs, setShowLogs] = useState(false);
+  const [selectedUrlIndex, setSelectedUrlIndex] = useState(0);
   const listenerRef = useRef<ClickToComponentListener | null>(null);
 
   const { t } = useTranslation('tasks');
@@ -43,12 +47,29 @@ export function PreviewPanel() {
   } = useDevServer(attemptId);
 
   const logStream = useLogStream(latestDevServerProcess?.id ?? '');
-  const lastKnownUrl = useDevserverUrlFromLogs(logStream.logs);
+  const { urls: allDetectedUrls } = useAllDevserverUrls(logStream.logs);
+
+  // Get currently selected URL (default to first one)
+  const selectedUrl: DevserverUrlInfo | undefined =
+    allDetectedUrls[selectedUrlIndex] ?? allDetectedUrls[0];
+
+  // Reset selection when URLs change
+  useEffect(() => {
+    if (selectedUrlIndex >= allDetectedUrls.length && allDetectedUrls.length > 0) {
+      setSelectedUrlIndex(0);
+    }
+  }, [allDetectedUrls.length, selectedUrlIndex]);
+
+  const handleSelectUrl = (index: number) => {
+    setSelectedUrlIndex(index);
+    setIframeError(false);
+    setRefreshKey((prev) => prev + 1);
+  };
 
   const previewState = useDevserverPreview(attemptId, {
     projectHasDevScript,
     projectId: projectId!,
-    lastKnownUrl,
+    lastKnownUrl: selectedUrl,
   });
 
   const handleRefresh = () => {
@@ -166,6 +187,9 @@ export function PreviewPanel() {
             <PreviewToolbar
               mode={mode}
               url={previewState.url}
+              allUrls={allDetectedUrls}
+              selectedUrlIndex={selectedUrlIndex}
+              onSelectUrl={handleSelectUrl}
               onRefresh={handleRefresh}
               onCopyUrl={handleCopyUrl}
               onStop={stopDevServer}
